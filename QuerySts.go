@@ -32,9 +32,6 @@ func main() {
 		flag.PrintDefaults()
 		os.Exit(1)
 	}
-	// TODO: accept Domain as an argument
-	//domain := "gmail.com"
-	//domain := "comcast.net"
 
 	mxRecords := mxRecords(*domain)
 	for _, record := range mxRecords {
@@ -48,13 +45,72 @@ func main() {
 	if len(stsRecord) > 0 {
 		fmt.Printf("STS Found. STS Record:\n\t %s\n\n", stsRecord)
 	} else {
-		fmt.Printf("ERROR: STS Failed DNS record not found\n\n")
+		fmt.Printf("ERROR: STS Failed, DNS record not found\n\n")
 	}
 
 	// HTTP lookup
-	queryHTTPSRecord("https://mta-sts." + *domain + "/.well-known/mta-sts.txt")
+	policyResource := queryHTTPSRecord("https://mta-sts." + *domain + "/.well-known/mta-sts.txt")
+	policyRows := strings.Split(policyResource, "\n")
 
-	// Validate records
+	// Validate policy resource records
+	if !hasKey(policyRows, "version") {
+		fmt.Println("Error the policy resource must contain a version field")
+	}
+
+	if valueForKey(policyRows, "version") != "STSv1" {
+		fmt.Println("Error version must equal 'STSv1'")
+	}
+
+	mode := valueForKey(policyRows, "mode")
+	if mode != "report" && mode != "enforce" && mode != "none" {
+		fmt.Printf("Error mode must be one of 'report', 'enforce', 'none' but was %s", mode)
+	}
+
+	if !hasKey(policyRows, "max_age") {
+		fmt.Printf("Error policy resource should have a 'max_age' field.")
+	}
+
+	allKeys := allKeys(policyRows)
+	for _, key := range allKeys {
+		if key != "" && key != "version" && key != "mode" && key != "max_age" && key != "mx" {
+			fmt.Printf("Error unknown key in policy [%s]\n", key)
+
+		}
+	}
+
+}
+
+func hasKey(rows []string, key string) bool {
+	for _, line := range rows {
+		if strings.HasPrefix(line, key) {
+			return true
+		}
+	}
+	return false
+}
+
+// Returns first value that has given key
+func valueForKey(rows []string, key string) string {
+	for _, line := range rows {
+		if strings.HasPrefix(line, key) {
+			fields := strings.Split(line, ":")
+			return strings.TrimSpace(fields[1])
+		}
+	}
+	return ""
+}
+
+func allKeys(rows []string) []string {
+	keys := make([]string, 1, 4)
+
+	for _, line := range rows {
+		fields := strings.Split(line, ":")
+		key := strings.TrimSpace(fields[0])
+		if key != "" {
+			keys = append(keys, key)
+		}
+	}
+	return keys
 }
 
 func mxRecords(domain string) []string {
@@ -70,18 +126,6 @@ func mxRecords(domain string) []string {
 		records = append(records, buf.String())
 	}
 	return records
-}
-
-func strmx(mxs []*net.MX) string {
-	var buf bytes.Buffer
-	sep := ""
-	fmt.Fprintf(&buf, "[")
-	for _, mx := range mxs {
-		fmt.Fprintf(&buf, "%s%s:%d", sep, mx.Host, mx.Pref)
-		sep = " "
-	}
-	fmt.Fprintf(&buf, "]")
-	return buf.String()
 }
 
 func stsDNSCheck(domain string) string {
@@ -139,6 +183,7 @@ func queryHTTPSRecord(url string) string {
 			fmt.Println("STS HTTPS Record:\n------------------")
 			responseString := string(responseData)
 			fmt.Println(responseString)
+			return responseString
 		}
 	}
 	return ""
