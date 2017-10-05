@@ -74,10 +74,34 @@ func main() {
 	for _, key := range allKeys {
 		if key != "" && key != "version" && key != "mode" && key != "max_age" && key != "mx" {
 			fmt.Printf("Error unknown key in policy [%s]\n", key)
-
 		}
 	}
 
+	mxs := valuesForKey(policyRows, "mx")
+	for _, record := range mxRecords {
+		if len(record) > 0 {
+			if !mxHasMatch(mxs, record) {
+				fmt.Printf("Error undefined MX record [%s]\n", record)
+			}
+		}
+	}
+
+}
+
+func mxHasMatch(declaredMXs []string, mxHost string) bool {
+	for _, mx := range declaredMXs {
+		if strings.HasPrefix(mx, ".") {
+			i := strings.Index(mxHost, ".")
+			baseHost := mxHost[i:]
+			if baseHost == mx {
+				return true
+			}
+
+		} else if mx == mxHost {
+			return true
+		}
+	}
+	return false
 }
 
 func hasKey(rows []string, key string) bool {
@@ -98,6 +122,18 @@ func valueForKey(rows []string, key string) string {
 		}
 	}
 	return ""
+}
+
+func valuesForKey(rows []string, key string) []string {
+	results := make([]string, 1, 4)
+	for _, line := range rows {
+		if strings.HasPrefix(line, key) {
+			fields := strings.Split(line, ":")
+			value := strings.TrimSpace(fields[1])
+			results = append(results, value)
+		}
+	}
+	return results
 }
 
 func allKeys(rows []string) []string {
@@ -123,7 +159,7 @@ func mxRecords(domain string) []string {
 	for _, mx := range mxs {
 		var buf bytes.Buffer
 		fmt.Fprintf(&buf, "%s", mx.Host)
-		records = append(records, buf.String())
+		records = append(records, normalizeDomain(buf.String()))
 	}
 	return records
 }
@@ -187,4 +223,19 @@ func queryHTTPSRecord(url string) string {
 		}
 	}
 	return ""
+}
+
+func normalizeDomain(domain string) string {
+	if strings.HasSuffix(domain, ".") {
+		return trimSuffix(domain, ".")
+	}
+
+	return domain
+}
+
+func trimSuffix(s, suffix string) string {
+	if strings.HasSuffix(s, suffix) {
+		s = s[:len(s)-len(suffix)]
+	}
+	return s
 }
