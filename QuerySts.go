@@ -86,8 +86,16 @@ func main() {
 		}
 	}
 
+	rptRecord := rptDNSCheck("_smtp-tlsrpt." + *domain)
+	if len(rptRecord) > 0 {
+		fmt.Printf("RPT Found. TLSPRT Record:\n\t %s\n\n", rptRecord)
+	} else {
+		fmt.Printf("ERROR: RPT Failed, DNS record not found\n\n")
+	}
+
 }
 
+// .example.com matches x.example.com but not x.y.example.com.
 func mxHasMatch(declaredMXs []string, mxHost string) bool {
 	for _, mx := range declaredMXs {
 		if strings.HasPrefix(mx, ".") {
@@ -173,6 +181,22 @@ func stsDNSCheck(domain string) string {
 		// See: https://tools.ietf.org/html/draft-ietf-uta-mta-sts-10#section-3.1
 		for _, element := range txt {
 			if strings.HasPrefix(element, "v=STSv1; ") {
+				return element
+			}
+		}
+	}
+	return ""
+}
+
+func rptDNSCheck(domain string) string {
+	txt, err := net.LookupTXT(domain)
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		// If we get multiple TXT records ours starts with "v=TLSRPTv1;"
+		// See:https://tools.ietf.org/html/draft-ietf-uta-smtp-tlsrpt-10
+		for _, element := range txt {
+			if strings.HasPrefix(element, "v=TLSRPTv1") {
 				return element
 			}
 		}
