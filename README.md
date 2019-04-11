@@ -2,7 +2,7 @@
 
 This is a quick test to verify STS configuration
 
-This code is written to validate [STS-MTA](https://tools.ietf.org/html/draft-ietf-uta-mta-sts-10) configuration.
+This code is written to validate [STS-MTA](https://www.ietf.org/rfc/rfc8461.txt) configuration.
 
 
 ## Usage
